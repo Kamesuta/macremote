@@ -18,23 +18,33 @@ iOS freezes web apps in the background, so no web page can hold a live connectio
 - **Close** disconnects, forgets the saved credentials, and signs out.
 - The screen is kept awake while connected (where iOS allows it).
 
-## Setup (on the Mac)
+## Install (on the Mac)
 
-1. **Turn on Screen Sharing**: System Settings → General → Sharing → Screen Sharing, and allow your user. (Do not tick "VNC viewers may control screen with password".)
-2. **Install Node 20+** (`brew install node`), then:
-   ```sh
-   git clone https://github.com/kmages/macremote && cd macremote
-   npm install
-   MACREMOTE_PASSWORD='pick-a-long-passphrase' npm start
-   ```
-   It listens on `127.0.0.1:8080` only.
-3. **Install Tailscale** on the Mac and the iPhone, then publish the app over HTTPS inside your tailnet (check `tailscale serve --help` for your version's syntax):
-   ```sh
-   tailscale serve --bg --https=443 http://127.0.0.1:8080
-   ```
-4. **On the iPhone**, open `https://<your-mac>.<your-tailnet>.ts.net` in Safari, sign in, then Share → **Add to Home Screen**. Launch it from the Home Screen.
-5. **Keep the Mac available**: stop it sleeping while you're away (`caffeinate -s` or Battery/Energy settings) and decide how you want the lock screen to behave. If the Mac locks itself, you'll still see its own password screen.
-6. **Optional, start at login**: edit `launchd/com.macremote.plist` (paths and password), copy it to `~/Library/LaunchAgents/`, `chmod 600` it, then `launchctl load ~/Library/LaunchAgents/com.macremote.plist`.
+You need [Node 20+](https://nodejs.org) (`brew install node`), [Tailscale](https://tailscale.com/download) signed in on the Mac and the phone, and Screen Sharing turned on (System Settings → General → Sharing → Screen Sharing; don't tick "VNC viewers may control screen with password").
+
+```sh
+git clone https://github.com/kmages/macremote && cd macremote && ./install.sh
+```
+
+The script checks all of the above (and tells you what's missing), asks for a password, starts macremote now and at every login, publishes it privately over Tailscale, and prints the address. On the phone, open that address, sign in, then Share → **Add to Home Screen**.
+
+Re-run `./install.sh` any time (e.g. to change the password). `./uninstall.sh` removes it. Logs: `/tmp/macremote.log`.
+
+Keep the Mac awake while you're away (System Settings → Battery → Options). If it locks itself you'll still see its own password screen.
+
+## Using it
+
+- **Pinch** to zoom (up to 5×), **two fingers** to pan. The `1×` button resets.
+- **Aa** opens a text box: type or paste text, **Send** types it on the Mac, **Send ↵** also presses Return.
+- ⌨ opens the phone keyboard; Esc, Tab, Ctrl and the other toolbar keys sit beside it.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| Page won't load | `launchctl list \| grep macremote`; `tail /tmp/macremote.log`; re-run `./install.sh` |
+| Loads but screen won't connect | Screen Sharing is off, or enter your Mac username/password when asked |
+| Address won't open on phone | Tailscale must be connected on both devices |
 
 ## Settings
 
