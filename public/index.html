@@ -14,10 +14,17 @@
 </head>
 <body>
   <div id="app">
-    <div id="screen"></div>
+    <div id="screen"><div id="zoom"></div></div>
     <div id="status" hidden></div>
+    <form id="textbar" hidden autocomplete="off">
+      <input id="txt" type="text" placeholder="Type or paste text to send to the Mac" autocomplete="off" autocorrect="on" autocapitalize="sentences" enterkeyhint="send">
+      <button type="submit" class="primary">Send</button>
+      <button type="button" id="txt-return" aria-label="Send then press Return">Send ↵</button>
+    </form>
     <div id="toolbar" hidden>
       <button id="btn-kbd" aria-label="Keyboard">⌨</button>
+      <button id="btn-text" aria-label="Text box">Aa</button>
+      <button id="btn-zoom" aria-label="Reset zoom">1×</button>
       <button data-key="0xFF1B">Esc</button>
       <button data-key="0xFF09">Tab</button>
       <button data-mod="0xFFE3">Ctrl</button>

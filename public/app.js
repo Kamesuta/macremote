@@ -44,7 +44,7 @@ function connect() {
   status(retries ? 'Reconnecting…' : 'Connecting…');
 
   const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  rfb = new RFB($('screen'), `${scheme}://${location.host}/vnc`, {
+  rfb = new RFB($('zoom'), `${scheme}://${location.host}/vnc`, {
     credentials: creds ?? undefined,
     wsProtocols: ['binary'],
   });
@@ -138,6 +138,58 @@ $('connect').addEventListener('submit', (e) => {
   connect();
 });
 
+// --- pinch to zoom, two-finger pan ---------------------------------------------
+// The viewer is scaled to fit #zoom, so zooming just makes #zoom bigger than #screen and
+// scrolls it. Pointer maths stay correct because nothing is CSS-transformed.
+const MAX_ZOOM = 5;
+let zoom = 1;
+const screenEl = $('screen');
+const zoomEl = $('zoom');
+function applyZoom(next, focalX, focalY) {
+  next = Math.min(MAX_ZOOM, Math.max(1, next));
+  const rect = screenEl.getBoundingClientRect();
+  const fx = focalX - rect.left;
+  const fy = focalY - rect.top;
+  const contentX = (screenEl.scrollLeft + fx) / zoom;
+  const contentY = (screenEl.scrollTop + fy) / zoom;
+  zoom = next;
+  zoomEl.style.width = `${zoom * 100}%`;
+  zoomEl.style.height = `${zoom * 100}%`;
+  screenEl.scrollLeft = contentX * zoom - fx;
+  screenEl.scrollTop = contentY * zoom - fy;
+  if (zoom === 1) { screenEl.scrollLeft = 0; screenEl.scrollTop = 0; }
+  $('btn-zoom').textContent = zoom === 1 ? '1×' : `${zoom.toFixed(1)}×`;
+}
+let pinch = null;
+const midpoint = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+const spread = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+// Capture phase, so two-finger gestures never reach noVNC's own touch handling.
+screenEl.addEventListener('touchstart', (e) => {
+  if (e.touches.length >= 2) {
+    const m = midpoint(e.touches);
+    pinch = { dist: spread(e.touches), zoom, x: m.x, y: m.y };
+    e.preventDefault(); e.stopPropagation();
+  }
+}, { capture: true, passive: false });
+screenEl.addEventListener('touchmove', (e) => {
+  if (!pinch) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.touches.length < 2) return;
+  const m = midpoint(e.touches);
+  screenEl.scrollLeft -= m.x - pinch.x;
+  screenEl.scrollTop -= m.y - pinch.y;
+  pinch.x = m.x; pinch.y = m.y;
+  applyZoom(pinch.zoom * (spread(e.touches) / pinch.dist), m.x, m.y);
+}, { capture: true, passive: false });
+function endPinch(e) {
+  if (!pinch) return;
+  e.preventDefault(); e.stopPropagation();
+  if (e.touches.length === 0) pinch = null;
+}
+screenEl.addEventListener('touchend', endPinch, { capture: true, passive: false });
+screenEl.addEventListener('touchcancel', endPinch, { capture: true, passive: false });
+$('btn-zoom').addEventListener('click', () => { const r = screenEl.getBoundingClientRect(); applyZoom(1, r.left, r.top); });
+
 // --- keyboard + toolbar ------------------------------------------------------
 const kbd = $('kbd');
 const keysymFor = (ch) => {
@@ -165,6 +217,37 @@ document.querySelectorAll('[data-mod]').forEach((b) =>
     const sym = Number(b.dataset.mod);
     if (activeMods.delete(sym)) b.classList.remove('on'); else { activeMods.add(sym); b.classList.add('on'); }
   }));
+// --- text box: type or paste a whole string and send it to the Mac ----------------
+const textbar = $('textbar');
+$('btn-text').addEventListener('click', () => {
+  textbar.hidden = !textbar.hidden;
+  $('btn-text').classList.toggle('on', !textbar.hidden);
+  if (!textbar.hidden) $('txt').focus();
+});
+async function sendText(text, thenReturn) {
+  if (!rfb) return;
+  let n = 0;
+  for (const ch of text) {
+    if (!rfb) return;
+    if (ch === '\n') rfb.sendKey(0xFF0D, null);
+    else if (ch === '\t') rfb.sendKey(0xFF09, null);
+    else if (ch !== '\r') rfb.sendKey(keysymFor(ch), null);
+    if (++n % 20 === 0) await new Promise((r) => setTimeout(r, 10)); // do not flood the Mac
+  }
+  if (thenReturn && rfb) rfb.sendKey(0xFF0D, null);
+}
+textbar.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const t = $('txt').value;
+  if (!t) return;
+  $('txt').value = '';
+  await sendText(t, false);
+});
+$('txt-return').addEventListener('click', async () => {
+  const t = $('txt').value;
+  $('txt').value = '';
+  await sendText(t, true);
+});
 $('btn-close').addEventListener('click', () => {
   if (confirm('Close this session and sign out?')) closeSession();
 });
