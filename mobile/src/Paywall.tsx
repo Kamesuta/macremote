@@ -3,7 +3,7 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, Vi
 import type { PurchasesPackage } from 'react-native-purchases';
 import { buy, loadPackage, purchasesConfigured, restore, trialLabel } from './purchases';
 
-const SITE = 'https://kmages.github.io/phonetopcremote';
+const SITE = 'https://phonetopcremote.com';
 export const PRIVACY_URL = `${SITE}/privacy/`;
 export const TERMS_URL = `${SITE}/terms/`;
 
