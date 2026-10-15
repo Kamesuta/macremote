@@ -6,6 +6,8 @@ export function normalizeServerUrl(input: string): string | null {
   try {
     const url = new URL(withScheme);
     if (url.protocol !== 'https:' || !url.hostname.includes('.')) return null;
+    // HTTPS certificates are issued for names (my-mac.tailnet.ts.net), never for a bare IP.
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname)) return null;
     return url.origin;
   } catch {
     return null;

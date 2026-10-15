@@ -10,6 +10,7 @@ test('rejects plain http, empty and nonsense', () => {
   assert.equal(normalizeServerUrl('http://my-mac.tail1234.ts.net'), null);
   assert.equal(normalizeServerUrl(''), null);
   assert.equal(normalizeServerUrl('localhost'), null);
+  assert.equal(normalizeServerUrl('https://100.126.80.57'), null);
   assert.equal(normalizeServerUrl('not a url'), null);
 });
 

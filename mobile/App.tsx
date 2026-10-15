@@ -43,7 +43,7 @@ function ServerForm({ onSave }: { onSave: (url: string) => void }) {
   const [error, setError] = useState('');
   const submit = () => {
     const url = normalizeServerUrl(text);
-    if (!url) { setError('Enter the https address of your Mac, e.g. my-mac.your-tailnet.ts.net'); return; }
+    if (!url) { setError('Use the name ending in .ts.net (e.g. my-mac.your-tailnet.ts.net), not the 100.x.x.x number.'); return; }
     onSave(url);
   };
   return (

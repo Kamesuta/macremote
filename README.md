@@ -72,6 +72,8 @@ eas submit -p ios
 eas build -p android --profile production  # first upload to Play is done by hand in Play Console
 ```
 
+The app needs the Mac's Tailscale **name** (like `my-mac.your-tailnet.ts.net`, shown by `tailscale serve status`), not its `100.x.x.x` number: HTTPS certificates only exist for the name.
+
 `com.kmages.macremote` is a placeholder bundle id / package name in `mobile/app.json`; change it if it's taken. Each person still runs the Mac-side server themselves, so the app is only useful to people who have set that up.
 
 Why a wrapper app and not a Play Store listing of the PWA itself: a Trusted Web Activity wraps one fixed public website, and here every person's server address is private and different. The Expo wrapper takes the address at runtime instead.
