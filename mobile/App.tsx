@@ -6,15 +6,28 @@ import { useKeepAwake } from 'expo-keep-awake';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
 import { isSameOrigin, normalizeServerUrl } from './src/url';
+import { Paywall } from './src/Paywall';
+import { Demo } from './src/Demo';
+import { checkPro, onProChange, purchasesConfigured, setupPurchases } from './src/purchases';
 
 const STORE_KEY = 'macremote.serverUrl';
 const LOAD_TIMEOUT_MS = 20000;
 
 export default function App() {
   const [server, setServer] = useState<string | null | undefined>(undefined); // undefined = still loading
+  const [pro, setPro] = useState<boolean | undefined>(undefined);               // undefined = still checking
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORE_KEY).then((v) => setServer(v ?? null), () => setServer(null));
+  }, []);
+
+  useEffect(() => {
+    setupPurchases();
+    // Without store keys (local development) the app is unlocked so it can still be worked on.
+    if (!purchasesConfigured) { setPro(__DEV__); return; }
+    checkPro().then(setPro, () => setPro(false));
+    return onProChange(setPro);
   }, []);
 
   const save = useCallback(async (url: string) => {
@@ -30,7 +43,9 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <SafeAreaView style={styles.root} edges={['top']}>
-        {server === undefined ? <ActivityIndicator color={ACCENT} style={styles.center} />
+        {server === undefined || pro === undefined ? <ActivityIndicator color={ACCENT} style={styles.center} />
+          : demo ? <Demo onClose={() => setDemo(false)} />
+          : !pro ? <Paywall onUnlocked={() => setPro(true)} onDemo={() => setDemo(true)} />
           : server === null ? <ServerForm onSave={save} />
           : <Remote server={server} onChangeServer={forget} />}
       </SafeAreaView>
