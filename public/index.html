@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Mac Remote">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="stylesheet" href="/style.css">
+  <title>Mac Remote</title>
+</head>
+<body>
+  <div id="app">
+    <div id="screen"></div>
+    <div id="status" hidden></div>
+    <div id="toolbar" hidden>
+      <button id="btn-kbd" aria-label="Keyboard">⌨</button>
+      <button data-key="0xFF1B">Esc</button>
+      <button data-key="0xFF09">Tab</button>
+      <button data-mod="0xFFE3">Ctrl</button>
+      <button data-mod="0xFFE9">Opt</button>
+      <button data-mod="0xFFEB">⌘</button>
+      <button data-key="0xFF51">←</button>
+      <button data-key="0xFF52">↑</button>
+      <button data-key="0xFF54">↓</button>
+      <button data-key="0xFF53">→</button>
+      <button id="btn-close" class="danger">Close</button>
+    </div>
+    <form id="connect" class="card" autocomplete="on">
+      <h1>Connect to your Mac</h1>
+      <label for="user">Mac username</label>
+      <input id="user" type="text" autocapitalize="off" autocorrect="off" autocomplete="username">
+      <label for="pass">Mac password</label>
+      <input id="pass" type="password" autocomplete="current-password">
+      <label class="check"><input id="remember" type="checkbox" checked> Keep me connected on this iPhone</label>
+      <p class="error" id="connect-error"></p>
+      <button class="primary" type="submit">Connect</button>
+    </form>
+    <input id="kbd" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1">
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

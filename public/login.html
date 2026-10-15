@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Mac Remote">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="stylesheet" href="/style.css">
+  <title>Mac Remote</title>
+</head>
+<body>
+  <form class="card" method="post" action="/login">
+    <h1>Mac Remote</h1>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <p class="error" id="error"></p>
+    <button class="primary" type="submit">Sign in</button>
+  </form>
+  <script src="/login.js"></script>
+</body>
+</html>

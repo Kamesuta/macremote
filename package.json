@@ -1,0 +1,19 @@
+{
+  "name": "macremote",
+  "version": "0.1.0",
+  "description": "Private web client for your Mac's Screen Sharing, built for iPhone: reconnects automatically when you return to it.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/server.test.js",
+    "test:e2e": "node test/e2e.mjs"
+  },
+  "dependencies": {
+    "@novnc/novnc": "^1.7.0",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.56.1"
+  }
+}
