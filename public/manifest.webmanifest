@@ -1,6 +1,6 @@
 {
-  "name": "Mac Remote",
-  "short_name": "Mac Remote",
+  "name": "Control Your PC",
+  "short_name": "Control PC",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

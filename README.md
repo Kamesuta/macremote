@@ -1,4 +1,4 @@
-# macremote
+# Control Your PC (macremote)
 
 A private web app that shows your Mac's screen on your iPhone and **reconnects by itself when you come back to it**, so you aren't asked to log in again. It stays signed in until you press **Close**.
 
