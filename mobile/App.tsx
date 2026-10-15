@@ -47,7 +47,7 @@ function ServerForm({ onSave }: { onSave: (url: string) => void }) {
   };
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Mac Remote</Text>
+      <Text style={styles.title}>PC Remote</Text>
       <Text style={styles.label}>Your Mac&apos;s address (the Tailscale HTTPS name)</Text>
       <TextInput
         style={styles.input} value={text} onChangeText={setText} onSubmitEditing={submit}

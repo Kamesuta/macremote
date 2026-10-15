@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mac Remote",
+    "name": "PC Remote",
     "slug": "macremote",
     "version": "0.1.0",
     "orientation": "default",
@@ -10,7 +10,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kmages.macremote",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.kmages.macremote",
@@ -22,6 +24,14 @@
       },
       "predictiveBackGestureEnabled": false
     },
-    "web": { "favicon": "./assets/favicon.png" }
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "8ac6c9e5-00f1-4f06-b58a-81622eed296c"
+      }
+    },
+    "owner": "kmages"
   }
 }
