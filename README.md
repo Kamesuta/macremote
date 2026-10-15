@@ -35,6 +35,7 @@ Keep the Mac awake while you're away (System Settings → Battery → Options). 
 ## Using it
 
 - **Pinch** to zoom (up to 5×), **two fingers** to pan. The `1×` button resets.
+- **Pad** switches to trackpad mode (remembered): drag one finger to move the pointer, **tap** to click, **tap two fingers** to right-click, **rest one finger** then drag to click-and-drag, and drag **two fingers** to scroll. Switch it off for direct touch, where a tap clicks where your finger lands.
 - **Aa** opens a text box: type or paste text, **Send** types it on the Mac, **Send ↵** also presses Return.
 - ⌨ opens the phone keyboard; Esc, Tab, Ctrl and the other toolbar keys sit beside it.
 

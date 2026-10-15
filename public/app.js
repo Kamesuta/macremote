@@ -59,6 +59,7 @@ function connect() {
     connected = true;
     retries = 0;
     status('');
+    drawPtr();
     acquireWakeLock();
   });
   rfb.addEventListener('credentialsrequired', () => {
@@ -144,13 +145,59 @@ $('connect').addEventListener('submit', (e) => {
   connect();
 });
 
-// --- pinch to zoom, two-finger pan ---------------------------------------------
+// --- touch: pinch to zoom, two-finger pan, optional trackpad mode ---------------------
 // The viewer is scaled to fit #zoom, so zooming just makes #zoom bigger than #screen and
 // scrolls it. Pointer maths stay correct because nothing is CSS-transformed.
 const MAX_ZOOM = 5;
+const PAD_KEY = 'macremote.pad';
+const PAD_SPEED = 1.6;       // pointer pixels per finger pixel
+const TAP_MS = 300;          // shorter than this and barely moved = a tap
+const HOLD_MS = 450;         // resting one finger this long starts a drag
+const MOVE_SLOP = 8;         // px of travel before a touch stops counting as a tap
+const ZOOM_SLOP = 24;        // px of finger-spread change before a two-finger gesture counts as a pinch
 let zoom = 1;
 const screenEl = $('screen');
 const zoomEl = $('zoom');
+const ptrEl = $('pointer');
+let padMode = false;
+try { padMode = localStorage.getItem(PAD_KEY) === '1'; } catch { /* private mode */ }
+const ptr = { fx: 0.5, fy: 0.5 }; // pointer as a fraction of the remote screen
+
+const canvasEl = () => zoomEl.querySelector('canvas');
+function ptrClient() {
+  const r = canvasEl()?.getBoundingClientRect();
+  return r && r.width ? { x: r.left + ptr.fx * r.width, y: r.top + ptr.fy * r.height, w: r.width, h: r.height } : null;
+}
+function drawPtr() {
+  const p = ptrClient();
+  ptrEl.hidden = !(padMode && connected && p);
+  if (ptrEl.hidden) return;
+  const s = screenEl.getBoundingClientRect();
+  ptrEl.style.transform = `translate(${p.x - s.left + screenEl.scrollLeft}px, ${p.y - s.top + screenEl.scrollTop}px)`;
+}
+function fireMouse(type, buttons, button = 0) {
+  const c = canvasEl(), p = ptrClient();
+  if (!c || !p) return;
+  c.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, buttons, button }));
+}
+function clickAtPointer(button) {            // 0 = left, 2 = right
+  const down = button === 2 ? 2 : 1;
+  fireMouse('mousemove', 0);
+  fireMouse('mousedown', down, button);
+  fireMouse('mouseup', 0, button);
+}
+function scrollRemote(dy) {
+  const c = canvasEl(), p = ptrClient();
+  if (!c || !p) return;
+  c.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, deltaY: -dy * 2, deltaMode: 0 }));
+}
+function setPad(on) {
+  padMode = on;
+  try { localStorage.setItem(PAD_KEY, on ? '1' : '0'); } catch { /* ignore */ }
+  $('btn-pad').classList.toggle('on', on);
+  drawPtr();
+}
+
 function applyZoom(next, focalX, focalY) {
   next = Math.min(MAX_ZOOM, Math.max(1, next));
   const rect = screenEl.getBoundingClientRect();
@@ -165,36 +212,98 @@ function applyZoom(next, focalX, focalY) {
   screenEl.scrollTop = contentY * zoom - fy;
   if (zoom === 1) { screenEl.scrollLeft = 0; screenEl.scrollTop = 0; }
   $('btn-zoom').textContent = zoom === 1 ? '1×' : `${zoom.toFixed(1)}×`;
+  drawPtr();
 }
-let pinch = null;
+
+let pinch = null;   // two fingers down
+let pad = null;     // one finger down in trackpad mode
 const midpoint = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
 const spread = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-// Capture phase, so two-finger gestures never reach noVNC's own touch handling.
+function endPad() {
+  if (!pad) return;
+  clearTimeout(pad.timer);
+  if (pad.dragging) { fireMouse('mouseup', 0); ptrEl.classList.remove('down'); }
+  pad = null;
+}
+
+// Capture phase, so these gestures never reach noVNC's own touch handling.
 screenEl.addEventListener('touchstart', (e) => {
   if (e.touches.length >= 2) {
+    endPad();
     const m = midpoint(e.touches);
-    pinch = { dist: spread(e.touches), zoom, x: m.x, y: m.y };
+    pinch = { dist: spread(e.touches), zoom, x: m.x, y: m.y, sx: m.x, sy: m.y, t0: Date.now(), moved: false, zooming: false };
+    e.preventDefault(); e.stopPropagation();
+  } else if (padMode && !pinch) {
+    const t = e.touches[0];
+    pad = { x: t.clientX, y: t.clientY, t0: Date.now(), moved: false, dragging: false, travel: 0 };
+    pad.timer = setTimeout(() => {
+      if (!pad || pad.moved) return;
+      pad.dragging = true;
+      ptrEl.classList.add('down');
+      fireMouse('mousedown', 1);
+    }, HOLD_MS);
     e.preventDefault(); e.stopPropagation();
   }
 }, { capture: true, passive: false });
+
 screenEl.addEventListener('touchmove', (e) => {
-  if (!pinch) return;
-  e.preventDefault(); e.stopPropagation();
-  if (e.touches.length < 2) return;
-  const m = midpoint(e.touches);
-  screenEl.scrollLeft -= m.x - pinch.x;
-  screenEl.scrollTop -= m.y - pinch.y;
-  pinch.x = m.x; pinch.y = m.y;
-  applyZoom(pinch.zoom * (spread(e.touches) / pinch.dist), m.x, m.y);
+  if (pinch) {
+    e.preventDefault(); e.stopPropagation();
+    if (e.touches.length < 2) return;
+    const m = midpoint(e.touches);
+    const d = spread(e.touches);
+    if (Math.abs(d - pinch.dist) > ZOOM_SLOP) pinch.zooming = true;
+    if (Math.hypot(m.x - pinch.sx, m.y - pinch.sy) > MOVE_SLOP || Math.abs(d - pinch.dist) > MOVE_SLOP) pinch.moved = true;
+    const dy = m.y - pinch.y;
+    if (padMode && zoom === 1 && !pinch.zooming) {
+      scrollRemote(dy);                       // two fingers scroll the Mac, like a trackpad
+    } else {
+      screenEl.scrollLeft -= m.x - pinch.x;
+      screenEl.scrollTop -= dy;
+    }
+    pinch.x = m.x; pinch.y = m.y;
+    if (!padMode || pinch.zooming) applyZoom(pinch.zoom * (d / pinch.dist), m.x, m.y);
+    return;
+  }
+  if (pad) {
+    e.preventDefault(); e.stopPropagation();
+    const t = e.touches[0];
+    const dx = t.clientX - pad.x, dy = t.clientY - pad.y;
+    pad.x = t.clientX; pad.y = t.clientY;
+    pad.travel += Math.hypot(dx, dy);
+    if (pad.travel > MOVE_SLOP) pad.moved = true;
+    const p = ptrClient();
+    if (!p || !pad.moved) return;
+    ptr.fx = Math.min(1, Math.max(0, ptr.fx + (dx * PAD_SPEED) / p.w));
+    ptr.fy = Math.min(1, Math.max(0, ptr.fy + (dy * PAD_SPEED) / p.h));
+    fireMouse('mousemove', pad.dragging ? 1 : 0);
+    drawPtr();
+  }
 }, { capture: true, passive: false });
-function endPinch(e) {
-  if (!pinch) return;
-  e.preventDefault(); e.stopPropagation();
-  if (e.touches.length === 0) pinch = null;
+
+function endTouch(e) {
+  if (pinch) {
+    e.preventDefault(); e.stopPropagation();
+    if (e.touches.length === 0) {
+      if (padMode && !pinch.moved && Date.now() - pinch.t0 < TAP_MS) clickAtPointer(2); // two-finger tap = right click
+      pinch = null;
+    }
+    return;
+  }
+  if (pad) {
+    e.preventDefault(); e.stopPropagation();
+    if (!pad.dragging && !pad.moved && Date.now() - pad.t0 < TAP_MS) clickAtPointer(0); // tap = click
+    endPad();
+  }
 }
-screenEl.addEventListener('touchend', endPinch, { capture: true, passive: false });
-screenEl.addEventListener('touchcancel', endPinch, { capture: true, passive: false });
+screenEl.addEventListener('touchend', endTouch, { capture: true, passive: false });
+screenEl.addEventListener('touchcancel', (e) => { endPad(); endTouch(e); }, { capture: true, passive: false });
 $('btn-zoom').addEventListener('click', () => { const r = screenEl.getBoundingClientRect(); applyZoom(1, r.left, r.top); });
+$('btn-pad').addEventListener('click', () => setPad(!padMode));
+$('btn-pad').classList.toggle('on', padMode);
+screenEl.addEventListener('scroll', drawPtr);
+window.addEventListener('resize', drawPtr);
+new ResizeObserver(drawPtr).observe(zoomEl);
 
 // --- keyboard + toolbar ------------------------------------------------------
 const kbd = $('kbd');
