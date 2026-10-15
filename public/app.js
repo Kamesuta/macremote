@@ -52,23 +52,29 @@ function connect() {
   rfb.resizeSession = false;
   rfb.showDotCursor = true;
 
+  // teardown() disconnects the old instance asynchronously; its late events must not act on the new one.
+  const me = rfb;
   rfb.addEventListener('connect', () => {
+    if (rfb !== me) return;
     connected = true;
     retries = 0;
     status('');
     acquireWakeLock();
   });
   rfb.addEventListener('credentialsrequired', () => {
+    if (rfb !== me) return;
     // The saved credentials were missing fields; ask again.
     authFailed = true;
     showForm('Enter your Mac username and password.');
   });
   rfb.addEventListener('securityfailure', () => {
+    if (rfb !== me) return;
     authFailed = true;
     forgetCreds();
     showForm('The Mac rejected that username or password.');
   });
   rfb.addEventListener('disconnect', () => {
+    if (rfb !== me) return;
     connected = false;
     releaseWakeLock();
     if (closed || authFailed) return;
