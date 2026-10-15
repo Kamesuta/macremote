@@ -10,7 +10,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_RC_ANDROID_KEY": "goog_jIkuFeaNNoRNdTdEmsoKOXyMQuM"
+        "EXPO_PUBLIC_RC_ANDROID_KEY": "goog_jIkuFeaNNoRNdTdEmsoKOXyMQuM",
+        "EXPO_PUBLIC_RC_IOS_KEY": "appl_gykuiDnJIaqdVREUNszsxdZJovy"
       }
     }
   },
