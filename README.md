@@ -53,6 +53,31 @@ npm test         # server: auth, origin check, websocket proxy
 npm run test:e2e # headless Chromium against a fake VNC server (needs Chromium; set CHROMIUM_PATH)
 ```
 
+## Mobile app (Expo): TestFlight and Google Play
+
+`mobile/` is a thin Expo app. It asks once for your Mac's `https://` address, then shows the web app full-screen in a WebView, keeps the screen awake while it's showing, and refuses to navigate away from that address. It adds nothing else: the viewer, reconnecting and sign-in all live in the web app above.
+
+You need:
+- An **Apple Developer Program** membership (paid, yearly). An Expo account alone can't submit to TestFlight.
+- A **Google Play Console** developer account (one-time fee). Google says new personal accounts must run a closed test with at least 12 testers for 14 continuous days before they can publish to production. Check the current rule in Play Console.
+
+```sh
+cd mobile
+npm install
+npm install -g eas-cli
+eas login
+eas init                                   # writes your EAS project id into app.json
+eas build -p ios --profile production      # or add --auto-submit to send it to TestFlight
+eas submit -p ios
+eas build -p android --profile production  # first upload to Play is done by hand in Play Console
+```
+
+`com.kmages.macremote` is a placeholder bundle id / package name in `mobile/app.json`; change it if it's taken. Each person still runs the Mac-side server themselves, so the app is only useful to people who have set that up.
+
+Why a wrapper app and not a Play Store listing of the PWA itself: a Trusted Web Activity wraps one fixed public website, and here every person's server address is private and different. The Expo wrapper takes the address at runtime instead.
+
+Not yet done: no EAS build has been run, and nothing has been installed on a phone. `npx tsc --noEmit` passes, `src/url.test.ts` passes, and `expo export` bundles for iOS and Android. Apple may question an app that is mostly a website (App Review guideline 4.2); TestFlight internal testing is the low-risk first step.
+
 ## Not yet verified
 
 These tests use a fake VNC server on Linux. **Not yet tried** against real macOS Screen Sharing or a real iPhone:
