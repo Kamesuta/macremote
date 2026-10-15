@@ -12,3 +12,16 @@ test('rejects plain http, empty and nonsense', () => {
   assert.equal(normalizeServerUrl('localhost'), null);
   assert.equal(normalizeServerUrl('not a url'), null);
 });
+
+import { isSameOrigin } from './url.ts';
+
+test('isSameOrigin matches the exact origin only', () => {
+  const s = 'https://my-mac.tail1234.ts.net';
+  assert.equal(isSameOrigin(s, s), true);
+  assert.equal(isSameOrigin(`${s}/`, s), true);
+  assert.equal(isSameOrigin(`${s}/login.html?error=1`, s), true);
+  assert.equal(isSameOrigin('about:blank', s), true);
+  assert.equal(isSameOrigin('https://my-mac.tail1234.ts.net.evil.com/', s), false);
+  assert.equal(isSameOrigin('http://my-mac.tail1234.ts.net/', s), false);
+  assert.equal(isSameOrigin('https://other.ts.net/', s), false);
+});

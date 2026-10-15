@@ -5,9 +5,10 @@ import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
-import { normalizeServerUrl } from './src/url';
+import { isSameOrigin, normalizeServerUrl } from './src/url';
 
 const STORE_KEY = 'macremote.serverUrl';
+const LOAD_TIMEOUT_MS = 20000;
 
 export default function App() {
   const [server, setServer] = useState<string | null | undefined>(undefined); // undefined = still loading
@@ -62,15 +63,23 @@ function ServerForm({ onSave }: { onSave: (url: string) => void }) {
 
 function Remote({ server, onChangeServer }: { server: string; onChangeServer: () => void }) {
   useKeepAwake(); // the screen stays on while the remote session is showing
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
-  if (failed) {
+  // A connection that hangs never raises an error, so give up after a while and say so.
+  useEffect(() => {
+    if (loaded || failure) return;
+    const t = setTimeout(() => setFailure('No response after 20 seconds.'), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [loaded, failure, attempt]);
+
+  if (failure) {
     return (
       <View style={styles.card}>
         <Text style={styles.title}>Can&apos;t reach your Mac</Text>
-        <Text style={styles.label}>{server}{'\n'}Check that Tailscale is connected on this phone and macremote is running on the Mac.</Text>
-        <Pressable style={styles.primary} onPress={() => { setFailed(false); setAttempt((n) => n + 1); }}>
+        <Text style={styles.label}>{server}{'\n'}{failure}{'\n\n'}Check that Tailscale is connected on this phone, that macremote is running on the Mac, and that this address opens in Safari.</Text>
+        <Pressable style={styles.primary} onPress={() => { setFailure(null); setLoaded(false); setAttempt((n) => n + 1); }}>
           <Text style={styles.primaryText}>Try again</Text>
         </Pressable>
         <Pressable style={styles.secondary} onPress={onChangeServer}><Text style={styles.secondaryText}>Change address</Text></Pressable>
@@ -82,10 +91,11 @@ function Remote({ server, onChangeServer }: { server: string; onChangeServer: ()
       key={attempt}
       source={{ uri: server }}
       style={styles.web}
-      originWhitelist={[`${server}/*`]}
-      onShouldStartLoadWithRequest={(req) => req.url.startsWith(server) || req.url === 'about:blank'}
-      onError={() => setFailed(true)}
-      onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) setFailed(true); }}
+      originWhitelist={['https://*']}
+      onShouldStartLoadWithRequest={(req) => isSameOrigin(req.url, server)}
+      onLoadEnd={() => setLoaded(true)}
+      onError={(e) => setFailure(e.nativeEvent.description || 'The page failed to load.')}
+      onHttpError={(e) => { if (e.nativeEvent.statusCode >= 500) setFailure(`The server answered with error ${e.nativeEvent.statusCode}.`); }}
       sharedCookiesEnabled
       keyboardDisplayRequiresUserAction={false}
       bounces={false}

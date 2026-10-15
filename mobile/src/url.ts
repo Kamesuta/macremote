@@ -11,3 +11,11 @@ export function normalizeServerUrl(input: string): string | null {
     return null;
   }
 }
+
+// True when `url` is on exactly the same https origin as `server` (a prefix check would let
+// https://my-mac.ts.net.evil.com through). Plain regex: React Native's URL has no `origin`.
+export function isSameOrigin(url: string, server: string): boolean {
+  if (url === 'about:blank') return true;
+  const origin = /^https:\/\/[^/?#]+/i.exec(url)?.[0];
+  return !!origin && origin.toLowerCase() === server.toLowerCase();
+}
