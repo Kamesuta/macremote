@@ -5,7 +5,14 @@ so no real screen content appears. Needs Google Chrome. Usage: python3 branding/
 import os, subprocess, tempfile, html
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, 'branding/screenshots')
+MODE = os.environ.get('SIZE', 'iphone')
+# width, height, phone left, phone top, caption top, phone scale, caption font scale, output folder
+W, H, PL, PT, CT, SC, FS, SUB = {
+    'iphone': (1320, 2868, 133, 780, 300, 2.7, 1, ''),
+    'ipad':   (2064, 2752, 505, 760, 200, 2.7, 1, '/ipad-13'),
+    'play':   (1080, 1920, 90, 470, 120, 2.3, 0.82, '/play'),
+}[MODE]
+OUT = os.path.join(ROOT, 'branding/screenshots' + SUB)
 CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 CSS = open(os.path.join(ROOT, 'public/style.css')).read()
 
@@ -34,11 +41,11 @@ server listening on :8080
 def phone(inner, caption, sub):
     return f'''<!doctype html><meta charset="utf-8"><style>
 {CSS}
-html,body{{width:1320px;height:2868px;margin:0;overflow:hidden;background:radial-gradient(120% 80% at 50% 0%,#1e3a5f 0%,#0f172a 60%)}}
-.cap{{position:absolute;top:300px;left:0;right:0;text-align:center;color:#fff}}
-.cap h1{{font:800 112px/1.05 -apple-system,system-ui,sans-serif;margin:0 80px;letter-spacing:-2px}}
-.cap p{{font:500 48px/1.3 -apple-system,system-ui,sans-serif;margin:30px 120px 0;color:#9fb4d0}}
-.phone{{position:absolute;left:133px;top:780px;width:390px;height:600px;transform:scale(2.7);transform-origin:0 0;border-radius:44px;overflow:hidden;background:#000;box-shadow:0 0 0 5px #243552,0 40px 120px rgba(0,0,0,.6)}}
+html,body{{width:{W}px;height:{H}px;margin:0;overflow:hidden;background:radial-gradient(120% 80% at 50% 0%,#1e3a5f 0%,#0f172a 60%)}}
+.cap{{position:absolute;top:{CT}px;left:0;right:0;text-align:center;color:#fff}}
+.cap h1{{font:800 {int(112*FS)}px/1.05 -apple-system,system-ui,sans-serif;margin:0 80px;letter-spacing:-2px}}
+.cap p{{font:500 {int(48*FS)}px/1.3 -apple-system,system-ui,sans-serif;margin:30px 120px 0;color:#9fb4d0}}
+.phone{{position:absolute;left:{PL}px;top:{PT}px;width:390px;height:600px;transform:scale({SC});transform-origin:0 0;border-radius:44px;overflow:hidden;background:#000;box-shadow:0 0 0 5px #243552,0 40px 120px rgba(0,0,0,.6)}}
 #app{{position:absolute;inset:0;background:#0f172a}}
 #toolbar{{padding-bottom:22px}}
 .fit{{position:absolute;left:0;right:0;top:50%;height:244px;margin-top:-122px;overflow:hidden}}
@@ -101,6 +108,6 @@ for name, page in slides.items():
         src = os.path.join(d, 'a.html'); open(src, 'w').write(page)
         dst = os.path.join(OUT, f'{name}.png')
         subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--hide-scrollbars', f'--screenshot={dst}',
-                        '--window-size=1320,2868', '--force-device-scale-factor=1', 'file://' + src],
+                        f'--window-size={W},{H}', '--force-device-scale-factor=1', 'file://' + src],
                        check=True, capture_output=True)
         print('wrote', os.path.relpath(dst, ROOT))
