@@ -2,3 +2,5 @@ node_modules/
 .macremote/
 *.log
 e2e-failure.png
+
+site/download/
