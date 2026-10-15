@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0ea5e9"/></linearGradient>
+  <radialGradient id="glow" cx=".5" cy=".4" r=".8"><stop offset="0" stop-color="#14456f"/><stop offset="1" stop-color="#0b2540"/></radialGradient>
+  <radialGradient id="bg" cx=".5" cy=".35" r=".9"><stop offset="0" stop-color="#1c2b4a"/><stop offset="1" stop-color="#0f172a"/></radialGradient>
+</defs><rect width="1024" height="1024" fill="url(#bg)"/><g transform="translate(512 512) scale(1.0) translate(-512 -474)">
+  <rect x="176" y="196" width="672" height="420" rx="54" fill="#0b2540" stroke="url(#sky)" stroke-width="36"/>
+  <rect x="212" y="232" width="600" height="348" rx="26" fill="url(#glow)"/>
+  <path fill="url(#sky)" d="M452 616h120v90H452z"/>
+  <rect x="336" y="696" width="352" height="56" rx="28" fill="url(#sky)"/>
+  <path transform="translate(500 292) scale(4.4)" d="M0 0 L0 80 L19 63 L32 96 L46 90 L33 58 L60 58 Z" fill="#ffffff" stroke="#0f172a" stroke-width="5" stroke-linejoin="round" paint-order="stroke"/></g></svg>

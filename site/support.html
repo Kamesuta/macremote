@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Support - Control Your PC</title><style>:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#0f172a;color:#e2e8f0;font:17px/1.65 -apple-system,system-ui,sans-serif}main{max-width:720px;margin:0 auto;padding:48px 20px 80px}h1{font-size:34px;line-height:1.15;margin:0 0 12px}h2{font-size:20px;margin:36px 0 8px}a{color:#38bdf8}code,pre{background:#1e293b;border-radius:8px;font:15px ui-monospace,Menlo,monospace}code{padding:2px 6px}pre{padding:14px 16px;overflow:auto}.lead{color:#94a3b8;font-size:19px}nav{display:flex;gap:18px;margin-bottom:36px;align-items:center}nav img{width:40px;height:40px;border-radius:10px}li{margin:6px 0}footer{margin-top:56px;color:#64748b;font-size:14px}</style></head><body><main><nav><a href="/"><img src="/icon-180.png" alt="Control Your PC"></a><a href="/support">Support</a><a href="/privacy">Privacy</a></nav>
+<h1>Support</h1>
+<p class="lead">Setup takes about five minutes.</p>
+<h2>Set up your Mac</h2>
+<ol><li>Turn on Screen Sharing: System Settings &rarr; General &rarr; Sharing &rarr; Screen Sharing.</li>
+<li>Install <a href="https://nodejs.org">Node 20+</a> and <a href="https://tailscale.com/download">Tailscale</a>, and sign in to Tailscale on both your Mac and your phone.</li>
+<li>In Terminal, run:<pre>git clone https://github.com/kmages/macremote &amp;&amp; cd macremote &amp;&amp; ./install.sh</pre></li>
+<li>Open the address it prints, in the app or in Safari, and sign in.</li></ol>
+<h2>Troubleshooting</h2>
+<ul>
+<li><b>The page won't load.</b> The server may not be running. On the Mac, run <code>launchctl list | grep macremote</code>, or run <code>./install.sh</code> again.</li>
+<li><b>It loads but the screen won't connect.</b> Screen Sharing may be off, or the Mac username or password is wrong.</li>
+<li><b>The address won't open on your phone.</b> Tailscale must be connected on both devices.</li>
+<li><b>It shows Reconnecting for a long time.</b> Fully close the app and reopen it. If it keeps happening, check that your Mac isn't asleep.</li>
+</ul>
+<h2>Contact</h2>
+<p>[CONTACT EMAIL]</p>
+<footer>&copy; 2026 Control Your PC &middot; <a href="/privacy">Privacy policy</a></footer></main></body></html>
