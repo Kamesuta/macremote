@@ -175,6 +175,20 @@ function drawPtr() {
   const s = screenEl.getBoundingClientRect();
   ptrEl.style.transform = `translate(${p.x - s.left + screenEl.scrollLeft}px, ${p.y - s.top + screenEl.scrollTop}px)`;
 }
+// When zoomed in, pan the view so the pointer never sits outside it: pushing the pointer to a
+// side of the Mac's screen brings that side into view.
+const EDGE_MARGIN = 28;      // px from the visible edge at which the view starts following
+function followPtr() {
+  if (zoom === 1) return;
+  const p = ptrClient();
+  if (!p) return;
+  const s = screenEl.getBoundingClientRect();
+  const mx = Math.min(EDGE_MARGIN, s.width / 2), my = Math.min(EDGE_MARGIN, s.height / 2);
+  if (p.x < s.left + mx) screenEl.scrollLeft -= s.left + mx - p.x;
+  else if (p.x > s.right - mx) screenEl.scrollLeft += p.x - (s.right - mx);
+  if (p.y < s.top + my) screenEl.scrollTop -= s.top + my - p.y;
+  else if (p.y > s.bottom - my) screenEl.scrollTop += p.y - (s.bottom - my);
+}
 function fireMouse(type, buttons, button = 0) {
   const c = canvasEl(), p = ptrClient();
   if (!c || !p) return;
@@ -276,6 +290,7 @@ screenEl.addEventListener('touchmove', (e) => {
     if (!p || !pad.moved) return;
     ptr.fx = Math.min(1, Math.max(0, ptr.fx + (dx * PAD_SPEED) / p.w));
     ptr.fy = Math.min(1, Math.max(0, ptr.fy + (dy * PAD_SPEED) / p.h));
+    followPtr();
     fireMouse('mousemove', pad.dragging ? 1 : 0);
     drawPtr();
   }
