@@ -41,7 +41,7 @@ test('wrong password is rejected, right password sets a long-lived cookie', asyn
   const good = await login();
   const cookie = good.headers.get('set-cookie');
   assert.match(cookie, /HttpOnly/);
-  assert.match(cookie, /SameSite=Strict/);
+  assert.match(cookie, /SameSite=Lax/);
   assert.match(cookie, /Max-Age=31536000/);
 });
 

@@ -54,13 +54,13 @@ export function sessionCookie(token, { secure }) {
     'Path=/',
     `Max-Age=${SESSION_SECONDS}`,
     'HttpOnly',
-    'SameSite=Strict',
+    'SameSite=Lax',
     secure ? 'Secure' : '',
   ].filter(Boolean).join('; ');
 }
 
 export function clearCookie({ secure }) {
-  return `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`;
+  return `${COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${secure ? '; Secure' : ''}`;
 }
 
 // Slows password guessing: after 5 failures from one address, lock it out for a minute.

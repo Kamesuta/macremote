@@ -63,6 +63,7 @@ export function createApp({
     if (h && h.expires < Date.now()) { handoffs.delete(id); h.waiters.forEach((w) => w()); return null; }
     return h ?? null;
   }
+  const handoffParam = (v) => (typeof v === 'string' && /^[\w-]{1,64}$/.test(v) ? v : null);
   async function readJson(req) {
     let raw = '';
     for await (const chunk of req) { raw += chunk; if (raw.length > 4096) return null; }
@@ -123,12 +124,13 @@ export function createApp({
     if (path === '/login' && req.method === 'POST') {
       if (limiter.blocked(addr)) { res.writeHead(429, { 'retry-after': '60' }).end('Too many attempts'); return; }
       const form = await readForm(req);
+      const h = handoffParam(form.get('h'));   // keep a handoff link alive through sign-in
       if (passwordMatches(form.get('password') ?? '', password)) {
         limiter.reset(addr);
-        res.writeHead(303, { location: '/', 'set-cookie': sessionCookie(makeToken(secret), { secure: secureCookie }) }).end();
+        res.writeHead(303, { location: h ? `/?h=${h}` : '/', 'set-cookie': sessionCookie(makeToken(secret), { secure: secureCookie }) }).end();
       } else {
         limiter.fail(addr);
-        res.writeHead(303, { location: '/login.html?error=1' }).end();
+        res.writeHead(303, { location: `/login.html?error=1${h ? `&h=${h}` : ''}` }).end();
       }
       return;
     }
@@ -139,7 +141,11 @@ export function createApp({
     if (req.method !== 'GET') { res.writeHead(405).end(); return; }
 
     if (PUBLIC_PATHS.has(path)) return sendFile(res, publicDir, path);
-    if (!signedIn(req)) { res.writeHead(303, { location: '/login.html' }).end(); return; }
+    if (!signedIn(req)) {
+      const h = handoffParam(url.searchParams.get('h'));
+      res.writeHead(303, { location: h ? `/login.html?h=${h}` : '/login.html' }).end();
+      return;
+    }
     if (path.startsWith('/vendor/novnc/')) return sendFile(res, novncDir, path.slice('/vendor/novnc/'.length));
     return sendFile(res, publicDir, path === '/' ? 'index.html' : path.slice(1));
   });
