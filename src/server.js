@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomBytes } from 'node:crypto';
 import net from 'node:net';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -51,11 +52,74 @@ export function createApp({
     return new URLSearchParams(raw);
   }
 
+  // Handoffs: a tool on the Mac (bin/macremote-ask) asks the phone user to act on one window.
+  // It authenticates with the cookie-signing secret, which only the Mac user can read.
+  const handoffs = new Map(); // id -> { message, region, app, expires, done, waiters }
+  const HANDOFF_MS = 30 * 60_000;
+  const hasKey = (req) => passwordMatches(req.headers['x-macremote-key'] ?? '', secret);
+  const json = (res, code, body) => res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(body));
+  function liveHandoff(id) {
+    const h = handoffs.get(id);
+    if (h && h.expires < Date.now()) { handoffs.delete(id); h.waiters.forEach((w) => w()); return null; }
+    return h ?? null;
+  }
+  async function readJson(req) {
+    let raw = '';
+    for await (const chunk of req) { raw += chunk; if (raw.length > 4096) return null; }
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+  // Returns true when it answered the request.
+  async function handleHandoff(req, res, path) {
+    if (path === '/api/handoff' && req.method === 'POST') {
+      if (!hasKey(req)) { json(res, 403, { error: 'forbidden' }); return true; }
+      const b = await readJson(req);
+      const r = b?.region;
+      const frac = (v) => typeof v === 'number' && v >= 0 && v <= 1;
+      if (!b || typeof b.message !== 'string' || !r || ![r.x, r.y, r.w, r.h].every(frac)) {
+        json(res, 400, { error: 'need message and region {x,y,w,h} as fractions of the screen' });
+        return true;
+      }
+      const id = randomBytes(16).toString('base64url');
+      handoffs.set(id, {
+        message: b.message.slice(0, 500), app: String(b.app ?? '').slice(0, 100),
+        region: { x: r.x, y: r.y, w: r.w, h: r.h }, expires: Date.now() + HANDOFF_MS, done: false, waiters: [],
+      });
+      json(res, 200, { id, path: `/?h=${id}` });
+      return true;
+    }
+    const m = /^\/api\/handoff\/([\w-]+)(\/done|\/wait)?$/.exec(path);
+    if (!m) return false;
+    const [, id, action] = m;
+    if (action === '/wait' && req.method === 'GET') {        // long poll for the Mac-side tool
+      if (!hasKey(req)) { json(res, 403, { error: 'forbidden' }); return true; }
+      const h = liveHandoff(id);
+      if (!h || h.done) { json(res, 200, { done: !!h?.done, expired: !h }); return true; }
+      const finish = () => { clearTimeout(timer); json(res, 200, { done: h.done, expired: !handoffs.has(id) }); };
+      const timer = setTimeout(() => { h.waiters = h.waiters.filter((w) => w !== finish); finish(); }, 25_000);
+      h.waiters.push(finish);
+      req.on('close', () => { clearTimeout(timer); h.waiters = h.waiters.filter((w) => w !== finish); });
+      return true;
+    }
+    if (!signedIn(req)) { json(res, 403, { error: 'sign in' }); return true; }
+    const h = liveHandoff(id);
+    if (!h) { json(res, 404, { error: 'expired' }); return true; }
+    if (!action && req.method === 'GET') { json(res, 200, { message: h.message, app: h.app, region: h.region, done: h.done }); return true; }
+    if (action === '/done' && req.method === 'POST') {
+      h.done = true;
+      h.waiters.splice(0).forEach((w) => w());
+      json(res, 200, { done: true });
+      return true;
+    }
+    json(res, 405, { error: 'method' });
+    return true;
+  }
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
     const path = decodeURIComponent(url.pathname);
     const addr = req.socket.remoteAddress ?? '';
 
+    if (path.startsWith('/api/handoff') && await handleHandoff(req, res, path)) return;
     if (path === '/login' && req.method === 'POST') {
       if (limiter.blocked(addr)) { res.writeHead(429, { 'retry-after': '60' }).end('Too many attempts'); return; }
       const form = await readForm(req);

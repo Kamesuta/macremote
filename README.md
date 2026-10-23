@@ -39,6 +39,17 @@ Keep the Mac awake while you're away (System Settings → Battery → Options). 
 - **Aa** opens a text box: type or paste text, **Send** types it on the Mac, **Send ↵** also presses Return.
 - ⌨ opens the phone keyboard; Esc, Tab, Ctrl and the other toolbar keys sit beside it.
 
+## Asking the phone to act on a window (`bin/macremote-ask`)
+
+For tools and AI agents on the Mac that need a person to do one thing by hand (type a password, flip a permission switch, paste a token):
+
+```sh
+bin/macremote-ask --app "System Settings" --message "Turn on Obsidian under Accessibility" --wait
+echo -n "$TOKEN" | bin/macremote-ask --app "Google Chrome" --clip --message "Paste the token (⌘V) into the field" --wait
+```
+
+It brings the app to the front and prints a link. Opened on the phone, the viewer zooms onto that app's front window and shows the message with a **Done** button. `--wait` blocks until Done is pressed (exit 0) or the link expires after 30 minutes (exit 2). `--app` takes the name as macOS shows it (often localized) or a bundle id. `--clip` puts stdin on the clipboard and clears it afterwards if unchanged. To aim at part of a page, make the window small first. The tool authenticates with `~/.macremote/secret`, so only the Mac user can create links.
+
 ## Troubleshooting
 
 | Symptom | Check |

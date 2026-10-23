@@ -28,3 +28,7 @@ button.primary { width: 100%; margin-top: 16px; background: var(--accent); color
 #connect { position: absolute; inset: 0; overflow: auto; background: var(--bg); }
 #kbd { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; font-size: 16px; border: 0; padding: 0; }
 [hidden] { display: none !important; }
+#handoff { display: flex; gap: 6px; align-items: center; padding: calc(6px + env(safe-area-inset-top)) 8px 6px; background: #422006; border-bottom: 1px solid #a16207; }
+#handoff p { flex: 1; margin: 0; font-size: 15px; }
+#handoff button { flex: none; }
+#handoff button.primary { width: auto; margin: 0; background: #facc15; border-color: #facc15; color: #422006; }

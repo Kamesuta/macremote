@@ -1,0 +1,101 @@
+#!/usr/bin/env node
+// Ask the person on the phone to do something in one window of this Mac.
+//
+//   macremote-ask --app "System Settings" --message "Turn on Obsidian under Accessibility" --wait
+//   echo -n "$TOKEN" | macremote-ask --app "Google Chrome" --clip --message "Paste the token into the field" --wait
+//
+// Brings the app to the front, sends its front window's position to macremote, and prints a link
+// that opens the phone viewer zoomed onto that window. --app takes the app's name as the window
+// list shows it (often localized, e.g. "システム設定") or its bundle id (com.apple.systempreferences).
+// --clip puts stdin on the clipboard first and clears it afterwards if it is still there.
+// --wait blocks until the phone user presses Done (exit 0) or the link expires (exit 2).
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { parseArgs } from 'node:util';
+
+const { values: opt } = parseArgs({
+  options: {
+    app: { type: 'string' },
+    message: { type: 'string' },
+    clip: { type: 'boolean', default: false },
+    wait: { type: 'boolean', default: false },
+  },
+});
+if (!opt.app || !opt.message) {
+  console.error('usage: macremote-ask --app <name|bundle id> --message <text> [--clip] [--wait]');
+  process.exit(64);
+}
+
+const dir = process.env.MACREMOTE_DIR ?? join(homedir(), '.macremote');
+const key = process.env.MACREMOTE_SECRET ?? readFileSync(join(dir, 'secret'), 'utf8').trim();
+const local = `http://127.0.0.1:${process.env.PORT ?? 8080}`;
+
+// Activate the app and return its front window as fractions of the main screen.
+const JXA = `
+ObjC.import('AppKit'); ObjC.import('CoreGraphics');
+function run([q]) {
+  const apps = ObjC.unwrap($.NSWorkspace.sharedWorkspace.runningApplications);
+  const app = apps.find((a) => ObjC.unwrap(a.localizedName) === q || ObjC.unwrap(a.bundleIdentifier) === q);
+  if (!app) return JSON.stringify({ error: 'app not running: ' + q });
+  app.activateWithOptions($.NSApplicationActivateAllWindows);
+  delay(0.5);
+  const pid = app.processIdentifier;
+  const wins = ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo(
+    $.kCGWindowListOptionOnScreenOnly | $.kCGWindowListExcludeDesktopElements, 0)));
+  const w = wins.find((w) => w.kCGWindowOwnerPID === pid && w.kCGWindowLayer === 0);
+  if (!w) return JSON.stringify({ error: 'no visible window for ' + q });
+  const s = $.NSScreen.mainScreen.frame.size, b = w.kCGWindowBounds;
+  const c = (v) => Math.min(1, Math.max(0, v));
+  const x = c(b.X / s.width), y = c(b.Y / s.height);
+  return JSON.stringify({ app: ObjC.unwrap(app.localizedName), region: {
+    x, y, w: c((b.X + b.Width) / s.width) - x, h: c((b.Y + b.Height) / s.height) - y } });
+}`;
+
+function publicBase() {
+  if (process.env.MACREMOTE_URL) return process.env.MACREMOTE_URL.replace(/\/$/, '');
+  // Find the tailscale serve address that proxies to this server.
+  const ts = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'];
+  for (const bin of ts) {
+    try {
+      let last = null;
+      for (const line of execFileSync(bin, ['serve', 'status'], { encoding: 'utf8' }).split('\n')) {
+        const u = /^(https:\/\/\S+)/.exec(line);
+        if (u) last = u[1];
+        else if (last && line.includes(`127.0.0.1:${process.env.PORT ?? 8080}`)) return last.replace(/\/$/, '');
+      }
+    } catch { /* try the next one */ }
+  }
+  return local;
+}
+
+const win = JSON.parse(execFileSync('osascript', ['-l', 'JavaScript', '-e', JXA, opt.app], { encoding: 'utf8' }));
+if (win.error) { console.error(win.error); process.exit(1); }
+
+let clip = null;
+if (opt.clip) {
+  clip = readFileSync(0, 'utf8');
+  execFileSync('pbcopy', { input: clip });
+}
+
+const res = await fetch(`${local}/api/handoff`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-macremote-key': key },
+  body: JSON.stringify({ message: opt.message, app: win.app, region: win.region }),
+});
+if (!res.ok) { console.error(`macremote: ${res.status} ${await res.text()}`); process.exit(1); }
+const { id, path } = await res.json();
+console.log(publicBase() + path);
+if (!opt.wait) process.exit(0);
+
+let done = false, expired = false;
+while (!done && !expired) {
+  try {
+    const r = await fetch(`${local}/api/handoff/${id}/wait`, { headers: { 'x-macremote-key': key } });
+    ({ done, expired } = await r.json());
+  } catch { await new Promise((ok) => setTimeout(ok, 2000)); }
+}
+if (clip !== null && execFileSync('pbpaste', { encoding: 'utf8' }) === clip) execFileSync('pbcopy', { input: '' });
+console.log(done ? 'done' : 'expired');
+process.exit(done ? 0 : 2);

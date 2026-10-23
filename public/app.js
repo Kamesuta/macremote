@@ -62,6 +62,7 @@ function connect() {
     status('');
     drawPtr();
     acquireWakeLock();
+    showHandoff();
   });
   rfb.addEventListener('credentialsrequired', () => {
     if (rfb !== me) return;
@@ -360,6 +361,60 @@ $('btn-pad').classList.toggle('on', padMode);
 screenEl.addEventListener('scroll', drawPtr);
 window.addEventListener('resize', drawPtr);
 new ResizeObserver(drawPtr).observe(zoomEl);
+
+// --- handoff: a link from macremote-ask opens zoomed onto one window ---------------------
+const handoffId = new URLSearchParams(location.search).get('h');
+let handoff = null;
+let handoffShown = false;   // zoom onto the window once per page load, not on every reconnect
+
+// Fit region {x,y,w,h} (fractions of the Mac's screen) into the view and centre it.
+function zoomToRegion(r) {
+  const c = canvasEl();
+  if (!c || c.width < 2) return false;
+  const s = screenEl.getBoundingClientRect();
+  const cr = c.getBoundingClientRect();
+  const base = cr.width / zoom, baseH = cr.height / zoom;   // canvas size at 1x
+  applyZoom(Math.min(s.width / (r.w * base), s.height / (r.h * baseH)), s.left, s.top);
+  // noVNC rescales the canvas after #zoom resizes, so measure again on the next frame.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const cr2 = c.getBoundingClientRect();
+    const left = cr2.left - s.left + screenEl.scrollLeft + r.x * cr2.width;
+    const top = cr2.top - s.top + screenEl.scrollTop + r.y * cr2.height;
+    screenEl.scrollLeft = left - (s.width - r.w * cr2.width) / 2;
+    screenEl.scrollTop = top - (s.height - r.h * cr2.height) / 2;
+    ptr.fx = r.x + r.w / 2; ptr.fy = r.y + r.h / 2;
+    drawPtr();
+  }));
+  return true;
+}
+function showHandoff(force = false, tries = 0) {
+  if (!handoff || handoff.done || !connected || (handoffShown && !force)) return;
+  if (zoomToRegion(handoff.region)) handoffShown = true;
+  else if (tries < 20) setTimeout(() => showHandoff(force, tries + 1), 150);
+}
+async function loadHandoff() {
+  if (!handoffId) return;
+  try {
+    const r = await fetch(`/api/handoff/${encodeURIComponent(handoffId)}`);
+    handoff = r.ok ? await r.json() : null;
+  } catch { handoff = null; }
+  $('handoff').hidden = false;
+  $('handoff-msg').textContent = !handoff ? 'この依頼は期限切れです。' : handoff.done ? `${handoff.message}(完了済み)` : handoff.message;
+  $('handoff-done').hidden = $('handoff-show').hidden = !handoff || handoff.done;
+  showHandoff();
+}
+$('handoff-show').addEventListener('click', () => showHandoff(true));
+$('handoff-done').addEventListener('click', async () => {
+  $('handoff-done').disabled = true;
+  try {
+    const r = await fetch(`/api/handoff/${encodeURIComponent(handoffId)}/done`, { method: 'POST' });
+    $('handoff-msg').textContent = r.ok ? '完了を伝えました。' : 'この依頼は期限切れです。';
+  } catch { $('handoff-msg').textContent = '送れませんでした。もう一度押してください。'; $('handoff-done').disabled = false; return; }
+  $('handoff-done').hidden = $('handoff-show').hidden = true;
+  history.replaceState(null, '', '/');
+  setTimeout(() => { $('handoff').hidden = true; }, 1500);
+});
+loadHandoff();
 
 // --- keyboard + toolbar ------------------------------------------------------
 const kbd = $('kbd');
