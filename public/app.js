@@ -198,11 +198,23 @@ function fireMouse(type, buttons, button = 0) {
   // to take it down. Ours stops at the canvas, so the overlay would swallow the next tap.
   if (type === 'mouseup') releaseCapture();
 }
+// macOS Screen Sharing sometimes drops a click whose move/down/up arrive together, so let the
+// pointer land first and space out the button events.
+const CLICK_GAP_MS = 40;
 function clickAtPointer(button) {            // 0 = left, 2 = right
   const down = button === 2 ? 2 : 1;
   fireMouse('mousemove', 0);
-  fireMouse('mousedown', down, button);
-  fireMouse('mouseup', 0, button);
+  setTimeout(() => {
+    fireMouse('mousedown', down, button);
+    setTimeout(() => fireMouse('mouseup', 0, button), CLICK_GAP_MS);
+  }, CLICK_GAP_MS);
+}
+function ptrAt(x, y) {                       // put the pointer under a finger
+  const r = canvasEl()?.getBoundingClientRect();
+  if (!r || !r.width) return false;
+  ptr.fx = Math.min(1, Math.max(0, (x - r.left) / r.width));
+  ptr.fy = Math.min(1, Math.max(0, (y - r.top) / r.height));
+  return true;
 }
 function scrollRemote(dy) {
   const c = canvasEl(), p = ptrClient();
@@ -235,6 +247,7 @@ function applyZoom(next, focalX, focalY) {
 
 let pinch = null;   // two fingers down
 let pad = null;     // one finger down in trackpad mode
+let direct = null;  // one finger down in direct-touch mode
 const midpoint = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
 const spread = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 function endPad() {
@@ -243,11 +256,17 @@ function endPad() {
   if (pad.dragging) { fireMouse('mouseup', 0); ptrEl.classList.remove('down'); }
   pad = null;
 }
+function endDirect() {
+  if (!direct) return;
+  if (direct.dragging) fireMouse('mouseup', 0);
+  direct = null;
+}
 
 // Capture phase, so these gestures never reach noVNC's own touch handling.
 screenEl.addEventListener('touchstart', (e) => {
   if (e.touches.length >= 2) {
     endPad();
+    endDirect();
     const m = midpoint(e.touches);
     pinch = { dist: spread(e.touches), zoom, x: m.x, y: m.y, sx: m.x, sy: m.y, t0: Date.now(), moved: false, zooming: false };
     e.preventDefault(); e.stopPropagation();
@@ -260,6 +279,12 @@ screenEl.addEventListener('touchstart', (e) => {
       ptrEl.classList.add('down');
       fireMouse('mousedown', 1);
     }, HOLD_MS);
+    e.preventDefault(); e.stopPropagation();
+  } else if (!padMode && !pinch) {
+    // Handled here instead of by noVNC, whose tap sends move+click at once (see clickAtPointer).
+    const t = e.touches[0];
+    direct = { sx: t.clientX, sy: t.clientY, t0: Date.now(), moved: false, dragging: false };
+    if (ptrAt(t.clientX, t.clientY)) fireMouse('mousemove', 0);
     e.preventDefault(); e.stopPropagation();
   }
 }, { capture: true, passive: false });
@@ -298,6 +323,13 @@ screenEl.addEventListener('touchmove', (e) => {
     fireMouse('mousemove', pad.dragging ? 1 : 0);
     drawPtr();
   }
+  if (direct) {
+    e.preventDefault(); e.stopPropagation();
+    const t = e.touches[0];
+    if (!direct.moved && Math.hypot(t.clientX - direct.sx, t.clientY - direct.sy) <= MOVE_SLOP) return;
+    if (!direct.moved) { direct.moved = true; direct.dragging = true; fireMouse('mousedown', 1); } // drag from where it started
+    if (ptrAt(t.clientX, t.clientY)) fireMouse('mousemove', 1);
+  }
 }, { capture: true, passive: false });
 
 function endTouch(e) {
@@ -314,9 +346,14 @@ function endTouch(e) {
     if (!pad.dragging && !pad.moved && Date.now() - pad.t0 < TAP_MS) clickAtPointer(0); // tap = click
     endPad();
   }
+  if (direct) {
+    e.preventDefault(); e.stopPropagation();
+    if (!direct.moved) clickAtPointer(Date.now() - direct.t0 >= HOLD_MS ? 2 : 0); // tap = click, long press = right click
+    endDirect();
+  }
 }
 screenEl.addEventListener('touchend', endTouch, { capture: true, passive: false });
-screenEl.addEventListener('touchcancel', (e) => { endPad(); endTouch(e); }, { capture: true, passive: false });
+screenEl.addEventListener('touchcancel', (e) => { endPad(); endDirect(); endTouch(e); }, { capture: true, passive: false });
 $('btn-zoom').addEventListener('click', () => { const r = screenEl.getBoundingClientRect(); applyZoom(1, r.left, r.top); });
 $('btn-pad').addEventListener('click', () => setPad(!padMode));
 $('btn-pad').classList.toggle('on', padMode);
