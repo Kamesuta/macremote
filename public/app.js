@@ -25,6 +25,9 @@ function forgetCreds() { try { localStorage.removeItem(STORE); } catch { /* igno
 function status(text) {
   $('status').hidden = !text;
   $('status').textContent = text ?? '';
+  // Sit below the handoff banner when it is showing.
+  const banner = $('handoff');
+  $('status').style.top = `${(banner.hidden ? 0 : banner.offsetHeight) + 12}px`;
 }
 
 function showForm(message = '') {
@@ -409,6 +412,7 @@ async function loadHandoff() {
   $('handoff').hidden = false;
   $('handoff-msg').textContent = !handoff ? 'この依頼は期限切れです。' : handoff.done ? `${handoff.message}(完了済み)` : handoff.message;
   $('handoff-done').hidden = $('handoff-show').hidden = !handoff || handoff.done;
+  status($('status').hidden ? '' : $('status').textContent);   // move it below the banner
   showHandoff();
 }
 $('handoff-show').addEventListener('click', () => showHandoff(true));
