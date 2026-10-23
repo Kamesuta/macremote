@@ -375,8 +375,8 @@ function zoomToRegion(r) {
   const cr = c.getBoundingClientRect();
   const base = cr.width / zoom, baseH = cr.height / zoom;   // canvas size at 1x
   applyZoom(Math.min(s.width / (r.w * base), s.height / (r.h * baseH)), s.left, s.top);
-  // noVNC rescales the canvas after #zoom resizes, so measure again on the next frame.
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  // noVNC rescales the canvas after #zoom resizes, so measure again once it has.
+  whenCanvasSettles(() => {
     const cr2 = c.getBoundingClientRect();
     const left = cr2.left - s.left + screenEl.scrollLeft + r.x * cr2.width;
     const top = cr2.top - s.top + screenEl.scrollTop + r.y * cr2.height;
@@ -384,13 +384,21 @@ function zoomToRegion(r) {
     screenEl.scrollTop = top - (s.height - r.h * cr2.height) / 2;
     ptr.fx = r.x + r.w / 2; ptr.fy = r.y + r.h / 2;
     drawPtr();
-  }));
+  });
   return true;
 }
-function showHandoff(force = false, tries = 0) {
+// Run fn once the canvas has kept the same size for one check (it changes size a few times
+// right after connecting, as the Mac's screen size arrives and noVNC fits it to the view).
+function whenCanvasSettles(fn, tries = 0, last = '') {
+  const r = canvasEl()?.getBoundingClientRect();
+  const size = r && r.width > 1 ? `${r.width}x${r.height}` : '';
+  if (size && size === last) { fn(); return; }
+  if (tries < 30) setTimeout(() => whenCanvasSettles(fn, tries + 1, size), 100);
+}
+function showHandoff(force = false) {
   if (!handoff || handoff.done || !connected || (handoffShown && !force)) return;
-  if (zoomToRegion(handoff.region)) handoffShown = true;
-  else if (tries < 20) setTimeout(() => showHandoff(force, tries + 1), 150);
+  handoffShown = true;
+  whenCanvasSettles(() => zoomToRegion(handoff.region));
 }
 async function loadHandoff() {
   if (!handoffId) return;
