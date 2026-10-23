@@ -1,4 +1,5 @@
 import RFB from '/vendor/novnc/core/rfb.js';
+import { releaseCapture } from '/vendor/novnc/core/util/events.js';
 
 const $ = (id) => document.getElementById(id);
 const STORE = 'macremote.credentials';
@@ -193,6 +194,9 @@ function fireMouse(type, buttons, button = 0) {
   const c = canvasEl(), p = ptrClient();
   if (!c || !p) return;
   c.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: p.x, clientY: p.y, buttons, button }));
+  // noVNC's mousedown puts a full-page capture overlay up and expects a real mouseup on window
+  // to take it down. Ours stops at the canvas, so the overlay would swallow the next tap.
+  if (type === 'mouseup') releaseCapture();
 }
 function clickAtPointer(button) {            // 0 = left, 2 = right
   const down = button === 2 ? 2 : 1;
