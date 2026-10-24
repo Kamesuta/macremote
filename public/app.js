@@ -477,8 +477,23 @@ $('btn-text').addEventListener('click', () => {
   $('btn-text').classList.toggle('on', !textbar.hidden);
   if (!textbar.hidden) $('txt').focus();
 });
+// Screen Sharing drops keystrokes for characters outside Latin-1, so text with anything else
+// (Japanese, emoji, ...) goes onto the Mac's clipboard and is pasted with ⌘V.
+const typeable = (text) => /^[\x00-\xff]*$/.test(text);
+async function pasteText(text) {
+  const r = await fetch('/api/clip', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+  if (!r.ok || !rfb) { status('貼り付けに失敗しました'); setTimeout(() => status(''), 2000); return; }
+  rfb.sendKey(0xFFEB, null, true);   // Super_L = ⌘ on macOS Screen Sharing
+  rfb.sendKey(0x76, null);           // v
+  rfb.sendKey(0xFFEB, null, false);
+}
 async function sendText(text, thenReturn) {
   if (!rfb) return;
+  if (!typeable(text)) {
+    await pasteText(text);
+    if (thenReturn && rfb) { await new Promise((r) => setTimeout(r, 150)); rfb.sendKey(0xFF0D, null); }
+    return;
+  }
   let n = 0;
   for (const ch of text) {
     if (!rfb) return;
@@ -518,10 +533,24 @@ kbd.addEventListener('keydown', (e) => {
     press(keysymFor(e.key));
   }
 });
+// IME keyboards (Gboard, iOS Japanese) compose text before committing it: send it on commit.
+let composing = false;
+kbd.addEventListener('compositionstart', () => { composing = true; });
+kbd.addEventListener('compositionend', (e) => {
+  composing = false;
+  const t = e.data ?? '';
+  kbd.value = '';
+  if (!t) return;
+  if (typeable(t)) for (const ch of t) press(keysymFor(ch));
+  else pasteText(t);
+});
 kbd.addEventListener('beforeinput', (e) => {
+  if (composing || e.isComposing) return;
   if (e.inputType === 'insertText' || e.inputType === 'insertFromPaste') {
     e.preventDefault();
-    for (const ch of e.data ?? '') press(keysymFor(ch));
+    const t = e.data ?? '';
+    if (typeable(t)) for (const ch of t) press(keysymFor(ch));
+    else pasteText(t);
   }
 });
 

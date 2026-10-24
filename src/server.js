@@ -2,7 +2,7 @@ import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import net from 'node:net';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, normalize, sep } from 'node:path';
@@ -152,6 +152,25 @@ export function createApp({
         limiter.fail(addr);
         res.writeHead(303, { location: `/login.html?error=1${h ? `&h=${h}` : ''}` }).end();
       }
+      return;
+    }
+    if (path === '/api/clip' && req.method === 'POST') {
+      // Put text on the Mac's clipboard so the viewer can paste it with ⌘V. Typing it as
+      // keystrokes can't carry Japanese and other non-Latin text through Screen Sharing.
+      const sameOrigin = (() => { try { return new URL(req.headers.origin ?? '').host === req.headers.host; } catch { return false; } })();
+      if (!signedIn(req) || !sameOrigin) { json(res, 403, { error: 'forbidden' }); return; }
+      const b = await readJson(req);
+      if (typeof b?.text !== 'string') { json(res, 400, { error: 'text' }); return; }
+      const env = { ...process.env, LANG: 'en_US.UTF-8' };   // launchd gives no locale; pbcopy needs it for UTF-8
+      execFile('pbpaste', { env }, (_, before) => {
+        const p = spawn('pbcopy', { env });
+        p.on('close', (code) => {
+          json(res, code === 0 ? 200 : 500, { ok: code === 0 });
+          // Put back what was there once the paste has had time to happen.
+          if (code === 0 && typeof before === 'string') setTimeout(() => spawn('pbcopy', { env }).stdin.end(before), 3000);
+        });
+        p.stdin.end(b.text);
+      });
       return;
     }
     if (path === '/logout' && req.method === 'POST') {
