@@ -32,3 +32,4 @@ button.primary { width: 100%; margin-top: 16px; background: var(--accent); color
 #handoff p { flex: 1; margin: 0; font-size: 15px; }
 #handoff button { flex: none; }
 #handoff button.primary { width: auto; margin: 0; background: #facc15; border-color: #facc15; color: #422006; }
+#mark { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; border: 3px solid #facc15; border-radius: 6px; box-shadow: 0 0 0 9999px rgba(0,0,0,.25); }

@@ -1,7 +1,9 @@
 import http from 'node:http';
 import { randomBytes } from 'node:crypto';
 import net from 'node:net';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer } from 'ws';
@@ -80,12 +82,30 @@ export function createApp({
         json(res, 400, { error: 'need message and region {x,y,w,h} as fractions of the screen' });
         return true;
       }
+      const k = b.mark;
+      const mark = k && [k.x, k.y, k.w, k.h].every(frac) ? { x: k.x, y: k.y, w: k.w, h: k.h } : null;
       const id = randomBytes(16).toString('base64url');
       handoffs.set(id, {
         message: b.message.slice(0, 500), app: String(b.app ?? '').slice(0, 100),
-        region: { x: r.x, y: r.y, w: r.w, h: r.h }, expires: Date.now() + HANDOFF_MS, done: false, waiters: [],
+        region: { x: r.x, y: r.y, w: r.w, h: r.h }, mark, expires: Date.now() + HANDOFF_MS, done: false, waiters: [],
       });
       json(res, 200, { id, path: `/?h=${id}` });
+      return true;
+    }
+    if (path === '/api/handoff/shot' && req.method === 'GET') {
+      // Screenshot of one window, taken here because this long-running process is the one
+      // that holds the Screen Recording permission (the asking tool usually does not).
+      if (!hasKey(req)) { json(res, 403, { error: 'forbidden' }); return true; }
+      const win = new URL(req.url, 'http://x').searchParams.get('window') ?? '';
+      if (!/^\d+$/.test(win)) { json(res, 400, { error: 'window id' }); return true; }
+      const dir = await mkdtemp(join(tmpdir(), 'macremote-shot-'));
+      const file = join(dir, 'shot.png');
+      execFile('screencapture', ['-o', '-x', '-l', win, file], async (err) => {
+        try {
+          if (err) json(res, 500, { error: String(err.message).trim() });
+          else res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'no-store' }).end(await readFile(file));
+        } finally { rm(dir, { recursive: true, force: true }); }
+      });
       return true;
     }
     const m = /^\/api\/handoff\/([\w-]+)(\/done|\/wait)?$/.exec(path);
@@ -104,7 +124,7 @@ export function createApp({
     if (!signedIn(req)) { json(res, 403, { error: 'sign in' }); return true; }
     const h = liveHandoff(id);
     if (!h) { json(res, 404, { error: 'expired' }); return true; }
-    if (!action && req.method === 'GET') { json(res, 200, { message: h.message, app: h.app, region: h.region, done: h.done }); return true; }
+    if (!action && req.method === 'GET') { json(res, 200, { message: h.message, app: h.app, region: h.region, mark: h.mark, done: h.done }); return true; }
     if (action === '/done' && req.method === 'POST') {
       h.done = true;
       h.waiters.splice(0).forEach((w) => w());

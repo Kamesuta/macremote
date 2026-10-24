@@ -9,8 +9,13 @@
 // list shows it (often localized, e.g. "システム設定") or its bundle id (com.apple.systempreferences).
 // --clip puts stdin on the clipboard first and clears it afterwards if it is still there.
 // --wait blocks until the phone user presses Done (exit 0) or the link expires (exit 2).
+//
+// To point at one spot in the window: take a screenshot with --shot, look at it, then pass the
+// spot as --rect x,y,w,h in that screenshot's pixels. The viewer zooms near it and outlines it.
+//   macremote-ask --app Claude --shot /tmp/win.png
+//   macremote-ask --app Claude --rect 1500,40,200,60 --message "Turn this switch on" --wait
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -20,11 +25,14 @@ const { values: opt } = parseArgs({
     app: { type: 'string' },
     message: { type: 'string' },
     clip: { type: 'boolean', default: false },
+    shot: { type: 'string' },
+    rect: { type: 'string' },
     wait: { type: 'boolean', default: false },
   },
 });
-if (!opt.app || !opt.message) {
-  console.error('usage: macremote-ask --app <name|bundle id> --message <text> [--clip] [--wait]');
+if (!opt.app || (!opt.message && !opt.shot)) {
+  console.error('usage: macremote-ask --app <name|bundle id> --message <text> [--rect x,y,w,h] [--clip] [--wait]\n'
+    + '       macremote-ask --app <name|bundle id> --shot <file.png>');
   process.exit(64);
 }
 
@@ -46,12 +54,17 @@ function run([q]) {
     $.kCGWindowListOptionOnScreenOnly | $.kCGWindowListExcludeDesktopElements, 0)));
   const w = wins.find((w) => w.kCGWindowOwnerPID === pid && w.kCGWindowLayer === 0);
   if (!w) return JSON.stringify({ error: 'no visible window for ' + q });
-  const s = $.NSScreen.mainScreen.frame.size, b = w.kCGWindowBounds;
-  const c = (v) => Math.min(1, Math.max(0, v));
-  const x = c(b.X / s.width), y = c(b.Y / s.height);
-  return JSON.stringify({ app: ObjC.unwrap(app.localizedName), region: {
-    x, y, w: c((b.X + b.Width) / s.width) - x, h: c((b.Y + b.Height) / s.height) - y } });
+  const s = $.NSScreen.mainScreen.frame.size;
+  return JSON.stringify({ app: ObjC.unwrap(app.localizedName), id: w.kCGWindowNumber, bounds: w.kCGWindowBounds,
+    screen: { w: s.width, h: s.height }, scale: $.NSScreen.mainScreen.backingScaleFactor });
 }`;
+
+// A rectangle in screen points -> fractions of the screen, clipped to it.
+function toFrac({ X, Y, Width, Height }, screen) {
+  const c = (v) => Math.min(1, Math.max(0, v));
+  const x = c(X / screen.w), y = c(Y / screen.h);
+  return { x, y, w: c((X + Width) / screen.w) - x, h: c((Y + Height) / screen.h) - y };
+}
 
 function publicBase() {
   if (process.env.MACREMOTE_URL) return process.env.MACREMOTE_URL.replace(/\/$/, '');
@@ -73,6 +86,32 @@ function publicBase() {
 const win = JSON.parse(execFileSync('osascript', ['-l', 'JavaScript', '-e', JXA, opt.app], { encoding: 'utf8' }));
 if (win.error) { console.error(win.error); process.exit(1); }
 
+const headers = { 'x-macremote-key': key };
+if (opt.shot) {
+  const r = await fetch(`${local}/api/handoff/shot?window=${win.id}`, { headers });
+  if (!r.ok) { console.error(`macremote: ${r.status} ${await r.text()}`); process.exit(1); }
+  writeFileSync(opt.shot, Buffer.from(await r.arrayBuffer()));
+  const px = (v) => Math.round(v * win.scale);
+  console.log(`${opt.shot}: ${px(win.bounds.Width)}x${px(win.bounds.Height)} px of ${win.app}'s front window. Pass a spot in these pixels as --rect x,y,w,h.`);
+  process.exit(0);
+}
+
+const b = win.bounds;
+let region = toFrac(b, win.screen);
+let mark = null;
+if (opt.rect) {
+  const n = opt.rect.split(',').map(Number);
+  if (n.length !== 4 || n.some((v) => !Number.isFinite(v) || v < 0)) { console.error('--rect wants x,y,w,h'); process.exit(64); }
+  const [rx, ry, rw, rh] = n.map((v) => v / win.scale);           // screenshot pixels -> points
+  const spot = { X: b.X + rx, Y: b.Y + ry, Width: rw, Height: rh };
+  mark = toFrac(spot, win.screen);
+  // Zoom to the spot with some of the window around it, so it's clear where it is.
+  const padX = Math.max(rw, b.Width * 0.15), padY = Math.max(rh, b.Height * 0.15);
+  const X = Math.max(b.X, spot.X - padX), Y = Math.max(b.Y, spot.Y - padY);
+  region = toFrac({ X, Y, Width: Math.min(b.X + b.Width, spot.X + rw + padX) - X,
+    Height: Math.min(b.Y + b.Height, spot.Y + rh + padY) - Y }, win.screen);
+}
+
 let clip = null;
 if (opt.clip) {
   clip = readFileSync(0, 'utf8');
@@ -81,8 +120,8 @@ if (opt.clip) {
 
 const res = await fetch(`${local}/api/handoff`, {
   method: 'POST',
-  headers: { 'content-type': 'application/json', 'x-macremote-key': key },
-  body: JSON.stringify({ message: opt.message, app: win.app, region: win.region }),
+  headers: { 'content-type': 'application/json', ...headers },
+  body: JSON.stringify({ message: opt.message, app: win.app, region, mark }),
 });
 if (!res.ok) { console.error(`macremote: ${res.status} ${await res.text()}`); process.exit(1); }
 const { id, path } = await res.json();

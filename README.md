@@ -48,7 +48,7 @@ bin/macremote-ask --app "System Settings" --message "Turn on Obsidian under Acce
 echo -n "$TOKEN" | bin/macremote-ask --app "Google Chrome" --clip --message "Paste the token (⌘V) into the field" --wait
 ```
 
-It brings the app to the front and prints a link. Opened on the phone, the viewer zooms onto that app's front window and shows the message with a **Done** button. `--wait` blocks until Done is pressed (exit 0) or the link expires after 30 minutes (exit 2). `--app` takes the name as macOS shows it (often localized) or a bundle id. `--clip` puts stdin on the clipboard and clears it afterwards if unchanged. To aim at part of a page, make the window small first. The tool authenticates with `~/.macremote/secret`, so only the Mac user can create links.
+It brings the app to the front and prints a link. Opened on the phone, the viewer zooms onto that app's front window and shows the message with a **Done** button. `--wait` blocks until Done is pressed (exit 0) or the link expires after 30 minutes (exit 2). `--app` takes the name as macOS shows it (often localized) or a bundle id. `--clip` puts stdin on the clipboard and clears it afterwards if unchanged. To point at one spot, run `bin/macremote-ask --app <app> --shot win.png` first (the server takes the screenshot, since it holds the Screen Recording permission), look at it, and pass the spot as `--rect x,y,w,h` in that image's pixels: the viewer zooms near it and outlines it. The tool authenticates with `~/.macremote/secret`, so only the Mac user can create links.
 
 ## Troubleshooting
 

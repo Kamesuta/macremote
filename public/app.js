@@ -174,6 +174,7 @@ function ptrClient() {
   return r && r.width ? { x: r.left + ptr.fx * r.width, y: r.top + ptr.fy * r.height, w: r.width, h: r.height } : null;
 }
 function drawPtr() {
+  drawMark();
   const p = ptrClient();
   ptrEl.hidden = !(padMode && connected && p);
   if (ptrEl.hidden) return;
@@ -398,6 +399,18 @@ function whenCanvasSettles(fn, tries = 0, last = '') {
   if (size && size === last) { fn(); return; }
   if (tries < 30) setTimeout(() => whenCanvasSettles(fn, tries + 1, size), 100);
 }
+// Outline the spot the handoff points at, if it has one.
+function drawMark() {
+  const m = handoff && !handoff.done ? handoff.mark : null;
+  const r = m && connected ? canvasEl()?.getBoundingClientRect() : null;
+  $('mark').hidden = !(r && r.width);
+  if ($('mark').hidden) return;
+  const s = screenEl.getBoundingClientRect();
+  Object.assign($('mark').style, {
+    transform: `translate(${r.left - s.left + screenEl.scrollLeft + m.x * r.width - 3}px, ${r.top - s.top + screenEl.scrollTop + m.y * r.height - 3}px)`,
+    width: `${m.w * r.width + 6}px`, height: `${m.h * r.height + 6}px`,
+  });
+}
 function showHandoff(force = false) {
   if (!handoff || handoff.done || !connected || (handoffShown && !force)) return;
   handoffShown = true;
@@ -423,6 +436,8 @@ $('handoff-done').addEventListener('click', async () => {
     $('handoff-msg').textContent = r.ok ? '完了を伝えました。' : 'この依頼は期限切れです。';
   } catch { $('handoff-msg').textContent = '送れませんでした。もう一度押してください。'; $('handoff-done').disabled = false; return; }
   $('handoff-done').hidden = $('handoff-show').hidden = true;
+  if (handoff) handoff.done = true;
+  drawMark();
   history.replaceState(null, '', '/');
   setTimeout(() => { $('handoff').hidden = true; }, 1500);
 });
