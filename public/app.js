@@ -487,6 +487,17 @@ async function pasteText(text) {
   rfb.sendKey(0x76, null);           // v
   rfb.sendKey(0xFFEB, null, false);
 }
+// Paste the phone's clipboard on the Mac. Browsers that won't hand it over get the text box,
+// where the person can paste it themselves.
+$('btn-paste').addEventListener('click', async () => {
+  let text = '';
+  try { text = await navigator.clipboard.readText(); } catch { /* denied or unsupported */ }
+  if (text && rfb) { await pasteText(text); return; }
+  textbar.hidden = false;
+  $('btn-text').classList.add('on');
+  $('txt').focus();
+  status(text === '' ? 'ここに貼り付けて Send' : ''); setTimeout(() => status(''), 2500);
+});
 async function sendText(text, thenReturn) {
   if (!rfb) return;
   if (!typeable(text)) {
